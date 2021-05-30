@@ -1,0 +1,10 @@
+# train, val and testing datasets
+train: ./data/train/images
+val: ./data/val/images
+test: ./data/test
+
+# number of classes
+nc: 23
+
+# class names
+names: ["short sleeve top", "long sleeve top", "short sleeve shirt", "long sleeve shirt", "vest top", "sling top", "sleeveless top", "short outwear", "short vest", "long sleeve dress", "short sleeve dress", "sleeveless dress", "long vest", "long outwear", "bodysuit", "classical", "short skirt", "medium skirt", "long skirt", "shorts", "medium shorts", "trousers", "overalls"]
