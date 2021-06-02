@@ -166,8 +166,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         b = item['label'][1:] * [w, h, w, h]  # box
         b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
 
-        b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
-        b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
+        b[[0, 2]] = np.clip(b[[0, 2]], 0, w - 1)  # clip boxes outside of image
+        b[[1, 3]] = np.clip(b[[1, 3]], 0, h - 1)
 
         return img[b[1]:b[3], b[0]:b[2]]
 
