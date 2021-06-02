@@ -76,8 +76,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 [x.replace('/', os.sep) for x in f if os.path.splitext(x)[-1].lower() in img_formats])
         except Exception as e:
             raise Exception('Error loading data from %s: %s' % (path, e))
-        n = len(self.img_files)
-        assert n > 0, 'No images found in %s' % (path)
+
+        assert len(self.img_files) > 0, 'No images found in %s' % (path)
 
         # Define labels
         self.label_files = [x.replace('images', 'labels').replace(os.path.splitext(x)[-1], '.txt') for x in
@@ -102,7 +102,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.batch = bi  # batch index of image
 
         self.cache_images = cache_images
-        self.imgs = [None] * n
+        self.imgs = [None] * self.n
         self.transform = transform
         # Cache images into memory for faster training (WARNING: large datasets may exceed system RAM)
         '''
