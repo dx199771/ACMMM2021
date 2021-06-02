@@ -76,8 +76,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 [x.replace('/', os.sep) for x in f if os.path.splitext(x)[-1].lower() in img_formats])
         except Exception as e:
             raise Exception('Error loading data from %s: %s' % (path, e))
-
-        assert len(self.img_files) > 0, 'No images found in %s' % (path)
+        image_number = len(self.img_files)
+        assert image_number > 0, 'No images found in %s' % (path)
 
         # Define labels
         self.label_files = [x.replace('images', 'labels').replace(os.path.splitext(x)[-1], '.txt') for x in
@@ -96,26 +96,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.data = cache['data']
 
         self.n = len(self.data)  # number of samples
-        bi = np.floor(np.arange(n) / batch_size).astype(np.int)  # batch index
-        nb = bi[-1] + 1  # number of batches
-
-        self.batch = bi  # batch index of image
-
         self.cache_images = cache_images
         self.imgs = [None] * self.n
         self.transform = transform
-        # Cache images into memory for faster training (WARNING: large datasets may exceed system RAM)
-        '''
-        self.imgs = [None] * n
-        if cache_images:
-            gb = 0  # Gigabytes of cached images
-            pbar = tqdm(range(len(self.img_files)), desc='Caching images')
-            self.img_hw0, self.img_hw = [None] * n, [None] * n
-            for i in pbar:  # max 10k images
-                self.imgs[i], self.img_hw0[i], self.img_hw[i] = load_image(self, i)  # img, hw_original, hw_resized
-                gb += self.imgs[i].nbytes
-                pbar.desc = 'Caching images (%.1fGB)' % (gb / 1E9)
-        '''
 
     def cache_data(self, path='data.cache'):
         # Cache dataset labels, check images and read shapes
