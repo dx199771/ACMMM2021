@@ -89,10 +89,11 @@ def main():
     transform = transforms.Compose([
             transforms.Resize([args.image_size, args.image_size]),
             transforms.ToTensor(),
-            normalize,
+            # normalize,
         ])
     # Trainloader
     train_loader, dataset = create_dataloader(train_path, args.batch_size, cache=args.cache_image, transform=transform)
+    dataset.classes = names;
 
     val_loader = create_dataloader(test_path, args.batch_size, cache=False, transform=transform)[0]
 
@@ -309,6 +310,24 @@ def show_train_hist(hist, title, show=False, save=False, path='Train_hist.png'):
         plt.show()
     else:
         plt.close()
+
+
+def show_dataset(dataset, channels, dim=(5, 5), path='result.png'):
+    figure = plt.figure(figsize=(8, 8))
+    cols = dim[0]
+    rows = dim[1]
+    for i in range(1, cols * rows + 1):
+        sample_idx = torch.randint(len(dataset), size=(1,)).item()
+        img, label = dataset[sample_idx]
+        figure.add_subplot(rows, cols, i)
+        plt.title(dataset.classes[label])
+        plt.axis("off")
+        if channels == 1:
+            plt.imshow(img.squeeze())
+        else:
+            # rearrange the order
+            plt.imshow(img.squeeze().permute(1,2,0))
+    plt.savefig(path)
 
 if __name__ == '__main__':
     main()

@@ -17,7 +17,6 @@ from utils.general import torch_distributed_zero_first, xywh2xyxy
 
 img_formats = ['.bmp', '.jpg', '.jpeg', '.png', '.tif', '.tiff', '.dng']
 
-
 # Get orientation exif tag
 for orientation in ExifTags.TAGS.keys():
     if ExifTags.TAGS[orientation] == 'Orientation':
@@ -31,17 +30,18 @@ def get_hash(files):
 
 def exif_size(img):
     # Returns exif-corrected PIL size
-    s = img.size  # (width, height)
+    s = (img.size[1], img.size[0])  # (0 is width, 1 is height)
     try:
         rotation = dict(img._getexif().items())[orientation]
         if rotation == 6:  # rotation 270
             s = (s[1], s[0])
         elif rotation == 8:  # rotation 90
             s = (s[1], s[0])
-    except:
+    except Exception as e:
         pass
 
     return s
+
 
 def create_dataloader(path, batch_size, cache=True, transform=None):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache.
@@ -144,8 +144,13 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         if self.cache_images and self.imgs[index] is not None:
             img = self.imgs[index]
         else:
-            img = self.load_image(index)
-            img = Image.fromarray(img)
+            try:
+                img, b = self.load_image(index)
+                img = Image.fromarray(img)
+            except Exception as e:
+                print(item)
+                print(b)
+                print(e)
 
             if self.transform is not None:
                 img = self.transform(img)
@@ -169,5 +174,4 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         b[[0, 2]] = np.clip(b[[0, 2]], 0, w - 1)  # clip boxes outside of image
         b[[1, 3]] = np.clip(b[[1, 3]], 0, h - 1)
 
-        return img[b[1]:b[3], b[0]:b[2]]
-
+        return img[b[1]:b[3], b[0]:b[2]], b
