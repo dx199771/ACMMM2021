@@ -160,6 +160,13 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         return img, int(item['label'][0])
 
+    def get_item(self, index):
+        return self.data[index]
+
+    def get_image(self, index):
+        img, _ = self.load_image(index)
+        return Image.fromarray(img)
+
     def load_image(self, index):
         # loads 1 image from dataset, returns clipped img
         item = self.data[index]
