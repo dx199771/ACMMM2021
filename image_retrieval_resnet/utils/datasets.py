@@ -165,6 +165,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
     def get_image(self, index):
         img, _ = self.load_image(index)
+
         return Image.fromarray(img)
 
     def load_image(self, index):
@@ -172,7 +173,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         item = self.data[index]
 
         p = Path(item['img'])
-        img = cv2.imread(str(p))
+        img = Image.open(str(p)).convert('RGB')
+        img = np.array(img)
         h, w = item['shape']
 
         b = item['label'][1:] * [w, h, w, h]  # box

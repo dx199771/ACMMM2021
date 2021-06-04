@@ -108,6 +108,7 @@ def main():
     for i in range(0, len(search_dataset)):
         input_img, _ = search_dataset[i]
         input_img = input_img.unsqueeze(0)
+        input_img = input_img.to(device)
 
         feature = fc.extract(input_img)
 

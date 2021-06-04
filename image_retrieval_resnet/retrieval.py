@@ -36,9 +36,10 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model-path', type=str, default='./save_temp/resnet50.pth', help='path of model')
-    parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx.pth', help='name of image index')
-    parser.add_argument('--search-data', type=str, default='./data/train/images', help='images path of search data')
-    parser.add_argument('--index-original-data', type=str, default='./data/train/images', help='images path of index origin data')
+    parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx-.pth', help='name of image index')
+    parser.add_argument('--search-data', type=str, default='./data/trainm/images', help='images path of search data')
+    parser.add_argument('--index-original-data', type=str, default='./data/train/images',
+                        help='images path of index origin data')
     parser.add_argument('--idx', type=int, default=0, help='index of query image')
 
     args = parser.parse_args()
@@ -47,7 +48,7 @@ def main():
     image_index = None
     if os.path.isfile(args.search_idx_file):
         print("=> loading image search index file '{}'".format(args.search_idx_file))
-        image_index = torch.load(args.search_idx_file)
+        image_index = torch.load(args.search_idx_file, map_location=torch.device('cpu'))
         print("=> image index loaded")
     else:
         print("[Error]no image index found at '{}'".format(args.search_idx_file))
@@ -77,9 +78,6 @@ def main():
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    args.search_data = check_file(args.search_data)
-    args.index_original_data = check_file(args.index_original_data)
-
     transform = transforms.Compose([
         transforms.Resize([image_size, image_size]),
         transforms.ToTensor(),
@@ -95,14 +93,14 @@ def main():
     test_idx = args.idx
     input_img, _ = search_dataset[test_idx]
     input_img = input_img.unsqueeze(0)
+    input_img = input_img.to(device)
 
     feature = fc.extract(input_img)
-
     top_n = 5
-    dists = np.linalg.norm(idx_features - feature, axis=1)  # L2 distances to features
+    dists = np.linalg.norm(idx_features - feature.cpu(), axis=1)  # L2 distances to features
     indices = np.argsort(dists)[:top_n]  # Top results
     scores = [(idx, dists[idx]) for idx in indices]
-
+    print(scores)
     # 5. Show result
 
     figure = plt.figure(figsize=(8, 4))
@@ -119,12 +117,12 @@ def main():
         idx, sc = scores[i]
         result_image = origin_dataset.get_image(idx)
         figure.add_subplot(2, top_n, top_n + 1 + i)
-        plt.title("Top %d \n score: %0.5f" % (i + 1, sc))
+        # plt.title("Top %d \n score: %0.5f" % (i + 1, sc))
+        plt.title("Top %d" % (i + 1))
         plt.axis("off")
         plt.imshow(result_image)
 
     plt.show()
-
 
 
 if __name__ == '__main__':

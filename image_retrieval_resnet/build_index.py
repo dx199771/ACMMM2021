@@ -22,15 +22,6 @@ from utils.feature_extractor import FeatureExtractor
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-activation = {}
-
-
-def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
-
-    return hook
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -78,8 +69,6 @@ def main():
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    args.data = check_file(args.data)
-
     transform = transforms.Compose([
         transforms.Resize([args.image_size, args.image_size]),
         transforms.ToTensor(),
@@ -92,7 +81,7 @@ def main():
     image_index = {
         'arch': args.arch,
         'image_size': args.image_size,
-        'features': torch.Tensor(),
+        'features': torch.Tensor().to(device),
         'info': []
     }
     fc = FeatureExtractor(model)
