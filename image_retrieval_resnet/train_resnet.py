@@ -35,7 +35,7 @@ def main():
     parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet50', choices=model_names,
                         help='model architecture: ' + ' | '.join(model_names) +
                              ' (default: resnet50)')
-    parser.add_argument('--pretrained', dest='pretrained', default=False, action='store_true', help='use pre-trained model')
+    parser.add_argument('--pretrained', dest='pretrained', default=True, action='store_true', help='use pre-trained model')
     parser.add_argument('--weights', type=str, default='resnet.pt', help='initial weights path')
     parser.add_argument('--data', type=str, default='data/image_objects.yaml', help='data.yaml path')
     parser.add_argument('--image-size', type=int, default=224, help='resize to this image size')
@@ -57,8 +57,6 @@ def main():
         os.makedirs(args.save_dir)
 
     model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
-
-    model = model.to(device)
 
     args.start_epoch = 0
     best_prec1 = 0
@@ -97,6 +95,13 @@ def main():
     dataset.classes = names
 
     val_loader = create_dataloader(test_path, args.batch_size, cache=False, transform=transform)[0]
+
+    # Change the last layer of pretrained model
+    if (args.pretrained)
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, len(names))
+
+    model = model.to(device)
 
     #  Loss function
     criterion = nn.CrossEntropyLoss().to(device)
