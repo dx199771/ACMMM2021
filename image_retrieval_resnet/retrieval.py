@@ -36,8 +36,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model-path', type=str, default='./save_temp/resnet50.pth', help='path of model')
-    parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx-.pth', help='name of image index')
-    parser.add_argument('--search-data', type=str, default='./data/trainm/images', help='images path of search data')
+    parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx.pth', help='name of image index')
+    parser.add_argument('--search-data', type=str, default='./data/train/images', help='images path of search data')
     parser.add_argument('--index-original-data', type=str, default='./data/train/images',
                         help='images path of index origin data')
     parser.add_argument('--idx', type=int, default=0, help='index of query image')
@@ -60,6 +60,8 @@ def main():
     # 2. Load model
     # Create model
     model = models.resnet.__dict__[image_index['arch']](pretrained=False)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 23)
     model = model.to(device)
     if not args.model_path:
         print("[Error]--model-path must be set")

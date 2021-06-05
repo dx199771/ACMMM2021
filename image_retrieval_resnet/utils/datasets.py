@@ -149,7 +149,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 img = Image.fromarray(img)
             except Exception as e:
                 print(item)
-                print(b)
                 print(e)
 
             if self.transform is not None:

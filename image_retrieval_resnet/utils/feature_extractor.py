@@ -32,7 +32,7 @@ def get_activation(name):
 class FeatureExtractor:
     def __init__(self, model):
         self.model = model
-        self.model.fc.register_forward_hook(get_activation('fc'))
+        self.model.avgpool.register_forward_hook(get_activation('avgpool'))
 
     def extract(self, img):
         self.model.eval()
@@ -40,6 +40,7 @@ class FeatureExtractor:
         with torch.no_grad():
             output = self.model(img)
 
-        feature = activation['fc']
+        feature = torch.flatten(activation['avgpool'], 1)
+        print(torch.norm(feature[0]))
         feature = feature / torch.norm(feature[0])
         return feature

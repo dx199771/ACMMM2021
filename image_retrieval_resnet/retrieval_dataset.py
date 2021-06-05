@@ -70,6 +70,8 @@ def main():
     # 2. Load model
     # Create model
     model = models.resnet.__dict__[image_index['arch']](pretrained=False)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 23)
     model = model.to(device)
     if not args.model_path:
         print("[Error]--model-path must be set")
