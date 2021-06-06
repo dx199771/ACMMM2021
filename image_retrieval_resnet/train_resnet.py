@@ -97,7 +97,10 @@ def main():
     val_loader = create_dataloader(test_path, args.batch_size, cache=False, transform=transform)[0]
 
     # Change the last layer of pretrained model
-    if (args.pretrained)
+    if args.pretrained:
+        # Don't change the previous layers
+        for param in model.parameters():
+            param.requires_grad = False
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, len(names))
 
