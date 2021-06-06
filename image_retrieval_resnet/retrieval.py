@@ -109,12 +109,6 @@ def main():
     indices = np.argsort(dists)[:top_n]  # Top results
     scores = [(idx, dists[idx]) for idx in indices]
 
-    # L1 distance
-    # dists = torch.sum(torch.abs(idx_features - feature.cpu()), 1)  # L2 distances to features
-    # print(dists)
-    # indices = torch.argsort(dists, 0, descending=False)[:top_n]  # Top results
-    # scores = [(idx, dists[idx]) for idx in indices]
-
     # cosine similarity
     # cos = nn.CosineSimilarity(dim=1, eps=1e-6)
     # similarity = cos(idx_features, feature.cpu())
