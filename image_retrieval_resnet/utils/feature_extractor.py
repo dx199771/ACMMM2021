@@ -24,7 +24,7 @@ activation = {}
 
 def get_activation(name):
     def hook(model, input, output):
-        activation[name] = output.detach()
+        activation[name] = output.data
 
     return hook
 
@@ -41,6 +41,5 @@ class FeatureExtractor:
             output = self.model(img)
 
         feature = torch.flatten(activation['avgpool'], 1)
-        print(torch.norm(feature[0]))
         feature = feature / torch.norm(feature[0])
         return feature

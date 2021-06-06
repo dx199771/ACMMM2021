@@ -36,6 +36,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--model-path', type=str, default='./save_temp/resnet50.pth', help='path of model')
+    parser.add_argument('--pretrained', dest='pretrained', default=True, help='use pre-trained model')
     parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx.pth', help='name of image index')
     parser.add_argument('--search-data', type=str, default='./data/train/images', help='images path of search data')
     parser.add_argument('--index-original-data', type=str, default='./data/train/images',
@@ -59,22 +60,25 @@ def main():
 
     # 2. Load model
     # Create model
-    model = models.resnet.__dict__[image_index['arch']](pretrained=False)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, 23)
+    model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
+    if not args.pretrained:
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 23)
+
     model = model.to(device)
     if not args.model_path:
         print("[Error]--model-path must be set")
         return
 
-    if os.path.isfile(args.model_path):
-        print("=> loading model '{}'".format(args.model_path))
-        model_state = torch.load(args.model_path, map_location=torch.device(device))
-        model.load_state_dict(model_state)
-        print("=> model loaded")
-    else:
-        print("[Error]no model found at '{}'".format(args.model_path))
-        return
+    if not args.pretrained:
+        if os.path.isfile(args.model_path):
+            print("=> loading model '{}'".format(args.model_path))
+            model_state = torch.load(args.model_path, map_location=torch.device(device))
+            model.load_state_dict(model_state)
+            print("=> model loaded")
+        else:
+            print("[Error]no model found at '{}'".format(args.model_path))
+            return
 
     # 3. Load data
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -98,11 +102,27 @@ def main():
     input_img = input_img.to(device)
 
     feature = fc.extract(input_img)
-    top_n = 5
+    top_n = 10
+    # L2 distance
     dists = np.linalg.norm(idx_features - feature.cpu(), axis=1)  # L2 distances to features
+    print(dists)
     indices = np.argsort(dists)[:top_n]  # Top results
     scores = [(idx, dists[idx]) for idx in indices]
+
+    # L1 distance
+    # dists = torch.sum(torch.abs(idx_features - feature.cpu()), 1)  # L2 distances to features
+    # print(dists)
+    # indices = torch.argsort(dists, 0, descending=False)[:top_n]  # Top results
+    # scores = [(idx, dists[idx]) for idx in indices]
+
+    # cosine similarity
+    # cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+    # similarity = cos(idx_features, feature.cpu())
+    # print(similarity)
+    # indices = torch.argsort(similarity, 0, descending=True)[:top_n]  # Top results
+    # scores = [(idx, similarity[idx]) for idx in indices]
     print(scores)
+
     # 5. Show result
 
     figure = plt.figure(figsize=(8, 4))

@@ -35,6 +35,7 @@ def main():
                         help='model architecture: ' + ' | '.join(model_names) +
                              ' (default: resnet50)')
 
+    parser.add_argument('--pretrained', dest='pretrained', default=True, help='use pre-trained model')
     parser.add_argument('--image-size', type=int, default=224, help='resize image to ')
     parser.add_argument('--model-path', type=str, default='', help='path of model')
     parser.add_argument('--data', type=str, default='', help='images path of data')
@@ -50,23 +51,25 @@ def main():
 
     # 1. Load model
     # Create model
-    model = models.resnet.__dict__[args.arch](pretrained=False)
-    num_ftrs = model.fc.in_features
-    model.fc = nn.Linear(num_ftrs, 23)
+    model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
+    if not args.pretrained:
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 23)
 
     model = model.to(device)
     if not args.model_path:
         print("[Error]--model-path must be set")
         return
 
-    if os.path.isfile(args.model_path):
-        print("=> loading model '{}'".format(args.model_path))
-        model_state = torch.load(args.model_path, map_location=torch.device(device))
-        model.load_state_dict(model_state)
-        print("=> model loaded")
-    else:
-        print("[Error]no model found at '{}'".format(args.model_path))
-        return
+    if not args.pretrained:
+        if os.path.isfile(args.model_path):
+            print("=> loading model '{}'".format(args.model_path))
+            model_state = torch.load(args.model_path, map_location=torch.device(device))
+            model.load_state_dict(model_state)
+            print("=> model loaded")
+        else:
+            print("[Error]no model found at '{}'".format(args.model_path))
+            return
 
     # 2. Load data
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
