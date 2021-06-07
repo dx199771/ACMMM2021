@@ -3,6 +3,7 @@ import os
 import pickle
 import time
 import sys
+import json
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,23 +25,16 @@ import ntpath
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-activation = {}
 
+def get_id_from_name(img_name):
+    file_name = os.path.splitext(ntpath.basename(img_name))[0]
+    arr = file_name.split('_')
+    return arr[0], arr[1]
 
-def get_activation(name):
-    def hook(model, input, output):
-        activation[name] = output.detach()
-
-    return hook
 
 def check_same_item(img1, img2):
-    file_name1 = ntpath.basename(img1)
-    file_name2 = ntpath.basename(img2)
-
-    arr = file_name1.split('.')
-    item_id_1 = arr[0]
-    arr = file_name2.split('_')
-    item_id_2 = arr[0]
+    item_id_1, _ = get_id_from_name(img1)
+    item_id_2, _ = get_id_from_name(img2)
 
     return item_id_1 == item_id_2
 
@@ -70,7 +64,7 @@ def main():
 
     # 2. Load model
     # Create model
-    model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
+    model = models.resnet.__dict__[image_index['arch']](pretrained=args.pretrained)
     if not args.pretrained:
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, 23)
@@ -103,44 +97,83 @@ def main():
         normalize,
     ])
     # Data
-    _, search_dataset = create_dataloader(args.search_data, 1, cache=True, transform=transform)
+    data_loader, search_dataset = create_dataloader(args.search_data, 1, cache=True, transform=transform)
     _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=True, transform=None)
 
     # 4. Test search result
     fc = FeatureExtractor(model)
 
-    total_num = 0
-    accurate_num = 0
-    for i in range(0, len(search_dataset)):
-        input_img, _ = search_dataset[i]
-        input_img = input_img.unsqueeze(0)
-        input_img = input_img.to(device)
+    # Search and construct data structure
+    video_score = {} # video_id => { item_id => { accumulated avg score, image accumulated avg score} }
+    top_n = 5
+    tqdm_obj = tqdm(data_loader, file=sys.stdout)
+    for (input_img, _) in tqdm_obj:
+        i = tqdm_obj.n
+        search_item = search_dataset.get_item(i)
+        video_id, _ = get_id_from_name(search_item['img'])
+        if video_id not in video_score:
+            video_score[video_id] = {}
 
+        video_record = video_score[video_id]
+
+        # Extract feature
+        input_img = input_img.to(device)
         feature = fc.extract(input_img)
 
-        top_n = 5
         # L2 distance
-        dists = np.linalg.norm(idx_features - feature.cpu(), axis=1)  # L2 distances to features
-        indices = np.argsort(dists)[:top_n]  # Top results
-        scores = [(idx, dists[idx]) for idx in indices]
+        dists = torch.norm(idx_features - feature.cpu(), dim=1)  # L2 distances to features
+        indices = torch.argsort(dists, 0, descending=False)[:top_n]  # Top results
+        scores = [(idx.item(), dists[idx].item()) for idx in indices]
+        for idx, sc in scores:
+            origin_item = origin_dataset.get_item(idx)
+            item_id, img_sn = get_id_from_name(origin_item['img'])
+            if item_id not in video_record:
+                video_record[item_id] = {'avg': AverageMeter(), 'imgs':{}}
+            item_record = video_record[item_id]
 
-        # cosine similarity
-        # cos = nn.CosineSimilarity(dim=1, eps=1e-6)
-        # similarity = cos(idx_features, feature.cpu())
-        # print(similarity)
-        # indices = torch.argsort(similarity, 0, descending=True)[:top_n]  # Top results
-        # scores = [(idx, similarity[idx]) for idx in indices]
-        print(scores)
+            item_record['avg'].update(sc)
 
-        search_item = search_dataset.get_item(i)
-        origin_item = origin_dataset.get_item(indices[0])
-        print("Search: {}, got: {}".format(search_item['img'], origin_item['img']))
+            if img_sn not in item_record['imgs']:
+                # get bbox
+                item_record['imgs'][img_sn] = {'avg': AverageMeter(),
+                                               'bbox': origin_dataset.get_converted_bbox(idx)}
 
-        total_num += 1
-        if check_same_item(search_item['img'], origin_item['img']):
+            item_record['imgs'][img_sn]['avg'].update(sc)
+
+    sorted_video_records = {} # video_id => { "item_id":item_id, "imgs": [(img_sn, score, bbox)] }
+    # Refresh data by sorting
+    for video_id in video_score.keys():
+        sorted_video_records[video_id] = {'item_id':0, 'result':[]}
+
+        video_record = video_score[video_id]
+        item_list = []
+        for item_id in video_record.keys():
+            item_list.append((item_id, video_record[item_id]['avg'].avg))
+
+        item_list.sort(key=lambda tup:tup[1])
+        chosen_item_id = item_list[0][0]
+        sorted_video_records[video_id]['item_id'] = chosen_item_id
+
+        img_list = []
+        for img_sn in video_record[chosen_item_id]['imgs'].keys():
+            img_record = video_record[chosen_item_id]['imgs'][img_sn]
+            img_list.append((img_sn, img_record['avg'].avg, img_record['bbox']))
+
+        img_list.sort(key=lambda tup:tup[1])
+        sorted_video_records[video_id]['result'] = img_list
+
+    # print(sorted_video_records)
+    # with open('data.json', 'w') as f:
+    #     json.dump(sorted_video_records, f)
+
+    # Statisitcs
+    total_num = len(sorted_video_records)
+    accurate_num = 0
+    for video_id in sorted_video_records.keys():
+        if video_id == sorted_video_records[video_id]['item_id']:
             accurate_num += 1
 
-        print("Accuracy: %0.3f%%" % (float(accurate_num * 100) / total_num))
+    print("Accuracy: %0.3f%%" % (float(accurate_num * 100) / total_num))
 
 
 if __name__ == '__main__':

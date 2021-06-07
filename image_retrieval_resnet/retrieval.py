@@ -60,7 +60,7 @@ def main():
 
     # 2. Load model
     # Create model
-    model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
+    model = models.resnet.__dict__[image_index['arch']](pretrained=args.pretrained)
     if not args.pretrained:
         num_ftrs = model.fc.in_features
         model.fc = nn.Linear(num_ftrs, 23)

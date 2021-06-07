@@ -19,7 +19,7 @@ from typing import Type, Any, Callable, Union, List, Optional
 from utils.general import check_file
 from utils.datasets import create_dataloader
 from utils.utils import *
-
+from torch.optim import lr_scheduler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -57,7 +57,15 @@ def main():
         os.makedirs(args.save_dir)
 
     model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
+    # Change the last layer of pretrained model
+    if args.pretrained:
+        # Don't change the previous layers
+        for param in model.parameters():
+            param.requires_grad = False
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 23)
 
+    model = model.to(device)
     args.start_epoch = 0
     best_prec1 = 0
     if args.resume:
@@ -96,15 +104,6 @@ def main():
 
     val_loader = create_dataloader(test_path, args.batch_size, cache=False, transform=transform)[0]
 
-    # Change the last layer of pretrained model
-    if args.pretrained:
-        # Don't change the previous layers
-        for param in model.parameters():
-            param.requires_grad = False
-        num_ftrs = model.fc.in_features
-        model.fc = nn.Linear(num_ftrs, len(names))
-
-    model = model.to(device)
 
     #  Loss function
     criterion = nn.CrossEntropyLoss().to(device)
@@ -112,6 +111,9 @@ def main():
     optimizer = torch.optim.SGD(model.parameters(), args.learning_rate,
                                 momentum=args.momentum,
                                 weight_decay=args.weight_decay)
+    exp_lr_scheduler = lr_scheduler.StepLR(optimizer, step_size=7, gamma=0.1)
+    if args.resume:
+        exp_lr_scheduler.step(args.start_epoch)
 
     if args.evaluate:
         top1_accuracy, top5_accuracy = validate(val_loader, model)
@@ -137,6 +139,8 @@ def main():
         epoch_loss, _ = train(train_loader, model, criterion, optimizer, epoch)
         epoch_end_time = time.time()
         per_epoch_ptime = epoch_end_time - epoch_start_time
+
+        exp_lr_scheduler.step()
 
         # evaluate on validation set
         top1_accuracy, top5_accuracy = validate(val_loader, model)
@@ -181,7 +185,7 @@ def main():
 
 def adjust_learning_rate(optimizer, initial_lr, epoch):
     """Sets the learning rate to the initial LR decayed by 2 every 20 epochs"""
-    lr = initial_lr * (0.5 ** (epoch // 30))
+    lr = initial_lr * (0.5 ** (epoch // 20))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 

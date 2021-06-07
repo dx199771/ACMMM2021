@@ -49,7 +49,7 @@ def create_dataloader(path, batch_size, cache=True, transform=None):
     dataset = LoadImagesAndLabels(path, batch_size, transform=transform, cache_images=cache)
 
     batch_size = min(batch_size, len(dataset))
-    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
+    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 1, 8])  # number of workers
     dataloader = torch.utils.data.DataLoader(dataset,
                                              batch_size=batch_size,
                                              num_workers=nw,
@@ -166,6 +166,21 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         img, _ = self.load_image(index)
 
         return Image.fromarray(img)
+
+    def get_converted_bbox(self, index):
+        item = self.data[index]
+
+        h, w = item['shape']
+
+        b = item['label'][1:] * [w, h, w, h]  # box
+        b[2:] = b[2:].max()  # rectangle to square
+        b[2:] = b[2:] * 1.1 + 20  # pad
+        b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
+
+        b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
+        b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
+
+        return np.array([b[1], b[0], b[3], b[2]]).tolist()
 
     def load_image(self, index):
         # loads 1 image from dataset, returns clipped img

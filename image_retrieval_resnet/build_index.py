@@ -36,6 +36,7 @@ def main():
                              ' (default: resnet50)')
 
     parser.add_argument('--pretrained', dest='pretrained', default=True, help='use pre-trained model')
+    parser.add_argument('--append', dest='append', default=False, help='append new index')
     parser.add_argument('--image-size', type=int, default=224, help='resize image to ')
     parser.add_argument('--model-path', type=str, default='', help='path of model')
     parser.add_argument('--data', type=str, default='', help='images path of data')
@@ -49,6 +50,25 @@ def main():
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
+    savePath = os.path.join(args.save_dir, args.save_name)
+
+    image_index = {
+        'arch': args.arch,
+        'image_size': args.image_size,
+        'features': torch.Tensor().to(device),
+        'info': []
+    }
+
+    if args.append:
+        # 1. Load image search index file
+        if os.path.isfile(savePath):
+            print("=> loading image search index file '{}'".format(savePath))
+            image_index = torch.load(savePath, map_location=torch.device(device))
+            print("=> image index loaded")
+        else:
+            print("[Warning]Image index does not exist at '{}'. Create new!".format(savePath))
+
+
     # 1. Load model
     # Create model
     model = models.resnet.__dict__[args.arch](pretrained=args.pretrained)
@@ -57,11 +77,12 @@ def main():
         model.fc = nn.Linear(num_ftrs, 23)
 
     model = model.to(device)
-    if not args.model_path:
-        print("[Error]--model-path must be set")
-        return
 
     if not args.pretrained:
+        if not args.model_path:
+            print("[Error]--model-path must be set")
+            return
+
         if os.path.isfile(args.model_path):
             print("=> loading model '{}'".format(args.model_path))
             model_state = torch.load(args.model_path, map_location=torch.device(device))
@@ -84,12 +105,6 @@ def main():
     data_loader, dataset = create_dataloader(args.data, 1, cache=True, transform=transform)
 
     # 3. Generate feature
-    image_index = {
-        'arch': args.arch,
-        'image_size': args.image_size,
-        'features': torch.Tensor().to(device),
-        'info': []
-    }
     fc = FeatureExtractor(model)
     tqdm_obj = tqdm(data_loader, file=sys.stdout)
     for (input_img, target) in tqdm_obj:
@@ -100,7 +115,6 @@ def main():
         image_index['features'] = torch.cat((image_index['features'], feature), 0)
         image_index['info'].append(item)
 
-    savePath = os.path.join(args.save_dir, args.save_name)
     # Save image index
     torch.save(image_index, savePath)
     print("Image search index file generate successful!")
