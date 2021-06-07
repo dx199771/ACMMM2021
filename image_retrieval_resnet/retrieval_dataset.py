@@ -53,7 +53,7 @@ def main():
     image_index = None
     if os.path.isfile(args.search_idx_file):
         print("=> loading image search index file '{}'".format(args.search_idx_file))
-        image_index = torch.load(args.search_idx_file)
+        image_index = torch.load(args.search_idx_file, map_location=torch.device(device))
         print("=> image index loaded")
     else:
         print("[Error]no image index found at '{}'".format(args.search_idx_file))
@@ -88,9 +88,6 @@ def main():
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
-    args.search_data = check_file(args.search_data)
-    args.index_original_data = check_file(args.index_original_data)
-
     transform = transforms.Compose([
         transforms.Resize([image_size, image_size]),
         transforms.ToTensor(),
@@ -119,27 +116,33 @@ def main():
         # Extract feature
         input_img = input_img.to(device)
         feature = fc.extract(input_img)
+        feature.to(device)
 
         # L2 distance
-        dists = torch.norm(idx_features - feature.cpu(), dim=1)  # L2 distances to features
+        dists = torch.norm(idx_features - feature, dim=1)  # L2 distances to features
         indices = torch.argsort(dists, 0, descending=False)[:top_n]  # Top results
         scores = [(idx.item(), dists[idx].item()) for idx in indices]
         for idx, sc in scores:
             origin_item = origin_dataset.get_item(idx)
             item_id, img_sn = get_id_from_name(origin_item['img'])
             if item_id not in video_record:
-                video_record[item_id] = {'avg': AverageMeter(), 'imgs':{}}
+                video_record[item_id] = {'avg': AverageMeter(), 'times': 0, 'imgs':{}}
             item_record = video_record[item_id]
 
             item_record['avg'].update(sc)
+            item_record['times'] += 1
 
             if img_sn not in item_record['imgs']:
                 # get bbox
                 item_record['imgs'][img_sn] = {'avg': AverageMeter(),
+                                               'times' : 0,
                                                'bbox': origin_dataset.get_converted_bbox(idx)}
 
             item_record['imgs'][img_sn]['avg'].update(sc)
+            item_record['imgs'][img_sn]['times'] += 1
 
+    print("Original data structure")
+    print(video_score)
     sorted_video_records = {} # video_id => { "item_id":item_id, "imgs": [(img_sn, score, bbox)] }
     # Refresh data by sorting
     for video_id in video_score.keys():
@@ -148,18 +151,18 @@ def main():
         video_record = video_score[video_id]
         item_list = []
         for item_id in video_record.keys():
-            item_list.append((item_id, video_record[item_id]['avg'].avg))
+            item_list.append((item_id, video_record[item_id]['times'], video_record[item_id]['avg'].avg))
 
-        item_list.sort(key=lambda tup:tup[1])
+        item_list.sort(key=lambda tup : (-tup[1], tup[2]))
         chosen_item_id = item_list[0][0]
         sorted_video_records[video_id]['item_id'] = chosen_item_id
 
         img_list = []
         for img_sn in video_record[chosen_item_id]['imgs'].keys():
             img_record = video_record[chosen_item_id]['imgs'][img_sn]
-            img_list.append((img_sn, img_record['avg'].avg, img_record['bbox']))
+            img_list.append((img_sn, img_record['times'], img_record['avg'].avg, img_record['bbox']))
 
-        img_list.sort(key=lambda tup:tup[1])
+        img_list.sort(key=lambda tup : (-tup[1], tup[2]))
         sorted_video_records[video_id]['result'] = img_list
 
     # print(sorted_video_records)
