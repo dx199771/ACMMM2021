@@ -94,7 +94,7 @@ def main():
         normalize,
     ])
     # Data
-    data_loader, search_dataset = create_dataloader(args.search_data, 1, cache=True, transform=transform)
+    _, search_dataset = create_dataloader(args.search_data, 1, cache=True, transform=transform)
     _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=True, transform=None)
 
     # 4. Test search result
@@ -103,9 +103,18 @@ def main():
     # Search and construct data structure
     video_score = {} # video_id => { item_id => { accumulated avg score, image accumulated avg score} }
     top_n = 5
-    tqdm_obj = tqdm(data_loader, file=sys.stdout)
-    for (input_img, _) in tqdm_obj:
-        i = tqdm_obj.n
+    # tqdm_obj = tqdm(data_loader, file=sys.stdout)
+    # for (input_img, _) in tqdm_obj:
+    count = len(search_dataset)
+
+    for i in range(count):
+        if i % 100 == 0:
+            print("Now index: %d/%d" % (i, count))
+
+        input_img, _ = search_dataset[i]
+        input_img = input_img.unsqueeze(0)
+        input_img = input_img.to(device)
+
         search_item = search_dataset.get_item(i)
         video_id, _ = get_id_from_name(search_item['img'])
         if video_id not in video_score:
@@ -114,7 +123,6 @@ def main():
         video_record = video_score[video_id]
 
         # Extract feature
-        input_img = input_img.to(device)
         feature = fc.extract(input_img)
         feature.to(device)
 
@@ -141,8 +149,8 @@ def main():
             item_record['imgs'][img_sn]['avg'].update(sc)
             item_record['imgs'][img_sn]['times'] += 1
 
-    print("Original data structure")
-    print(video_score)
+    print("Data construct finished!")
+
     sorted_video_records = {} # video_id => { "item_id":item_id, "imgs": [(img_sn, score, bbox)] }
     # Refresh data by sorting
     for video_id in video_score.keys():
@@ -166,8 +174,9 @@ def main():
         sorted_video_records[video_id]['result'] = img_list
 
     # print(sorted_video_records)
-    # with open('data.json', 'w') as f:
-    #     json.dump(sorted_video_records, f)
+    print("Result file generated!")
+    with open('data.json', 'w') as f:
+        json.dump(sorted_video_records, f)
 
     # Statisitcs
     total_num = len(sorted_video_records)
