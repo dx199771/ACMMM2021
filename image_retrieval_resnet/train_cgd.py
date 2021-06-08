@@ -1,7 +1,8 @@
 import argparse
-
+import os
 import torch
 import yaml
+import panda as pd
 from thop import profile, clever_format
 from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
@@ -85,6 +86,8 @@ if __name__ == '__main__':
     parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
     parser.add_argument('--batch_size', default=128, type=int, help='train batch size')
     parser.add_argument('--num_epochs', default=20, type=int, help='train epoch number')
+    parser.add_argument('--save-dir', dest='save_dir', help='The directory used to save the trained models',
+                        default='save_temp', type=str)
 
     opt = parser.parse_args()
     # args parse
@@ -92,6 +95,11 @@ if __name__ == '__main__':
     gd_config, feature_dim, smoothing, temperature = opt.gd_config, opt.feature_dim, opt.smoothing, opt.temperature
     margin, recalls, batch_size = opt.margin, [int(k) for k in opt.recalls.split(',')], opt.batch_size
     num_epochs = opt.num_epochs
+
+    # Check the save_dir exists or not
+    if not os.path.exists(opt.save_dir):
+        os.makedirs(opt.save_dir)
+
     save_name_pre = '{}_{}_{}_{}_{}_{}_{}_{}_{}'.format(data_name, crop_type, backbone_type, gd_config, feature_dim,
                                                         smoothing, temperature, margin, batch_size)
 
@@ -147,7 +155,7 @@ if __name__ == '__main__':
 
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
-        data_frame.to_csv('results/{}_statistics.csv'.format(save_name_pre), index_label='epoch')
+        data_frame.to_csv(os.path.join(opt.save_dir, 'results/{}_statistics.csv'.format(save_name_pre)), index_label='epoch')
         # save database and model
         data_base = {}
         if rank > best_recall:
@@ -159,5 +167,5 @@ if __name__ == '__main__':
                 data_base['gallery_images'] = gallery_data_set.images
                 data_base['gallery_labels'] = gallery_data_set.labels
                 data_base['gallery_features'] = eval_dict['gallery']['features']
-            torch.save(model.state_dict(), 'results/{}_model.pth'.format(save_name_pre))
-            torch.save(data_base, 'results/{}_data_base.pth'.format(save_name_pre))
+            torch.save(model.state_dict(), os.path.join(opt.save_dir, 'results/{}_model.pth'.format(save_name_pre)))
+            torch.save(data_base, os.path.join(opt.save_dir, 'results/{}_data_base.pth'.format(save_name_pre)))
