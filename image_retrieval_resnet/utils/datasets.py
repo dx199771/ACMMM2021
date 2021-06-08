@@ -97,7 +97,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.data = cache['data']
         self.labels = []
         for i in range(0, len(self.data)):
-            self.labels.append(self.data['label'][0])
+            self.labels.append(int(self.data['label'][0]))
 
         self.n = len(self.data)  # number of samples
         self.cache_images = cache_images
