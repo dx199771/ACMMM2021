@@ -94,8 +94,8 @@ def main():
         normalize,
     ])
     # Data
-    _, search_dataset = create_dataloader(args.search_data, 1, cache=True, transform=transform)
-    _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=True, transform=None)
+    _, search_dataset = create_dataloader(args.search_data, 1, cache=False, transform=transform)
+    _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=False, transform=None)
 
     # 4. Test search result
     fc = FeatureExtractor(model)
@@ -143,7 +143,7 @@ def main():
             if img_sn not in item_record['imgs']:
                 # get bbox
                 item_record['imgs'][img_sn] = {'avg': AverageMeter(),
-                                               'times' : 0,
+                                               'times': 0,
                                                'bbox': origin_dataset.get_converted_bbox(idx)}
 
             item_record['imgs'][img_sn]['avg'].update(sc)
