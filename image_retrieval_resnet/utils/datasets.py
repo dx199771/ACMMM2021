@@ -95,6 +95,9 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         # data stores all the parameters of all the samples
         self.data = cache['data']
+        self.labels = []
+        for i in range(0, len(self.data)):
+            self.labels.append(self.data['label'][0])
 
         self.n = len(self.data)  # number of samples
         self.cache_images = cache_images
@@ -158,7 +161,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             if self.cache_images:
                 self.imgs[index] = img
 
-        return img, int(item['label'][0])
+        return img, self.labels[index]
 
     def get_item(self, index):
         return self.data[index]

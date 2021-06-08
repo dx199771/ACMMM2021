@@ -1,8 +1,9 @@
 import argparse
 import os
+import sys
 import torch
 import yaml
-import panda as pd
+import pandas as pd
 from thop import profile, clever_format
 from torch.optim import Adam
 from torch.optim.lr_scheduler import MultiStepLR
@@ -20,7 +21,7 @@ def train(net, optim):
     net.train()
     # fix bn on backbone network
     net.apply(set_bn_eval)
-    total_loss, total_correct, total_num, data_bar = 0, 0, 0, tqdm(train_data_loader)
+    total_loss, total_correct, total_num, data_bar = 0, 0, 0, tqdm(train_data_loader, file=sys.stdout)
     for inputs, labels in data_bar:
         inputs, labels = inputs.cuda(), labels.cuda()
         features, classes = net(inputs)
@@ -110,7 +111,7 @@ if __name__ == '__main__':
     # Load data
     opt.data_path = check_file(opt.data_path)
     with open(opt.data_path) as f:
-        data_dict = yaml.load(f, Loader=yaml.FullLoader)  # model dict
+        data_dict = yaml.load(f)  # model dict
 
     train_path = data_dict['train']
     test_path = data_dict['val']
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     transform = transforms.Compose([transforms.Resize((252, 252)), transforms.RandomCrop(224),
                                     transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
-    train_sample = MPerClassSampler(names, batch_size)
+    train_sample = None # MPerClassSampler(names, batch_size)
     # Trainloader
     train_data_loader, train_data_set = create_dataloader(train_path, opt.batch_size, cache=True, transform=transform,
                                                           sampler=train_sample)
@@ -128,7 +129,7 @@ if __name__ == '__main__':
 
     test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), normalize])
     test_data_loader, test_data_set = create_dataloader(test_path, opt.batch_size, cache=False, transform=test_transform)
-
+    test_data_set.classes = names
     eval_dict = {'test': {'data_loader': test_data_loader}}
     if data_name == 'isc':
         gallery_data_set = ImageReader(data_path, data_name, 'gallery', crop_type)
