@@ -68,7 +68,7 @@ def main():
     # 1. Load model
     # Create model
     model = Model('resnet50', 'SG', 1536, num_classes=23).to(device)
-
+    model.eval()
     if not args.model_path:
         print("[Error]--model-path must be set")
         return
@@ -92,22 +92,23 @@ def main():
         normalize,
     ])
     # Data loader
-    data_loader, dataset = create_dataloader(args.data, 1, cache=True, transform=transform)
+    data_loader, dataset = create_dataloader(args.data, 1, cache=False, transform=transform)
 
     # 3. Generate feature
     count = len(dataset)
 
     for i in range(count):
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print("Now index: %d/%d" % (i, count))
         input_img, _ = dataset[i]
         input_img = input_img.unsqueeze(0)
         input_img = input_img.to(device)
-
-        feature = model(input_img)[0]
-        item = dataset.get_item(i)
-        image_index['features'] = torch.cat((image_index['features'], feature), 0)
-        image_index['info'].append(item)
+        with torch.no_grad():
+            feature = model(input_img)[0]
+            item = dataset.get_item(i)
+            image_index['features'] = torch.cat((image_index['features'], feature), 0)
+            print(image_index['features'].shape)
+            image_index['info'].append(item)
 
     # Save image index
     torch.save(image_index, savePath)

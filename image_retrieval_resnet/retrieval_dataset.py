@@ -108,7 +108,7 @@ def main():
     count = len(search_dataset)
 
     for i in range(count):
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print("Now index: %d/%d" % (i, count))
 
         input_img, _ = search_dataset[i]

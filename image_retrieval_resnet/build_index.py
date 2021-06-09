@@ -102,14 +102,14 @@ def main():
         normalize,
     ])
     # Data loader
-    data_loader, dataset = create_dataloader(args.data, 1, cache=True, transform=transform)
+    data_loader, dataset = create_dataloader(args.data, 1, cache=False, transform=transform)
 
     # 3. Generate feature
     fc = FeatureExtractor(model)
     count = len(dataset)
 
     for i in range(count):
-        if i % 100 == 0:
+        if i % 1000 == 0:
             print("Now index: %d/%d" % (i, count))
         input_img, _ = dataset[i]
         input_img = input_img.unsqueeze(0)
