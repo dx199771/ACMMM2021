@@ -107,7 +107,6 @@ def main():
             feature = model(input_img)[0]
             item = dataset.get_item(i)
             image_index['features'] = torch.cat((image_index['features'], feature), 0)
-            print(image_index['features'].shape)
             image_index['info'].append(item)
 
     # Save image index
