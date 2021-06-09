@@ -101,7 +101,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         self.n = len(self.data)  # number of samples
         self.cache_images = cache_images
-        self.imgs = [None] * self.n
+        self.images = [None] * self.n
         self.transform = transform
 
     def cache_data(self, path='data.cache'):
@@ -145,8 +145,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         item = self.data[index]
 
         img = None
-        if self.cache_images and self.imgs[index] is not None:
-            img = self.imgs[index]
+        if self.cache_images and self.images[index] is not None:
+            img = self.images[index]
         else:
             try:
                 img, b = self.load_image(index)
@@ -159,7 +159,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 img = self.transform(img)
 
             if self.cache_images:
-                self.imgs[index] = img
+                self.images[index] = img
 
         return img, self.labels[index]
 
