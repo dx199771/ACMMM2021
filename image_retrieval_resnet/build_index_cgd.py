@@ -76,7 +76,7 @@ def main():
     if os.path.isfile(args.model_path):
         print("=> loading model '{}'".format(args.model_path))
         model_state = torch.load(args.model_path, map_location=torch.device(device))
-        model.load_state_dict(model_state)
+        model.load_state_dict(model_state, strict=False)
         print("=> model loaded")
     else:
         print("[Error]no model found at '{}'".format(args.model_path))
@@ -95,12 +95,17 @@ def main():
     data_loader, dataset = create_dataloader(args.data, 1, cache=True, transform=transform)
 
     # 3. Generate feature
-    tqdm_obj = tqdm(data_loader, file=sys.stdout)
-    for (input_img, target) in tqdm_obj:
+    count = len(dataset)
+
+    for i in range(count):
+        if i % 100 == 0:
+            print("Now index: %d/%d" % (i, count))
+        input_img, _ = dataset[i]
+        input_img = input_img.unsqueeze(0)
         input_img = input_img.to(device)
 
         feature = model(input_img)[0]
-        item = dataset.get_item(tqdm_obj.n)
+        item = dataset.get_item(i)
         image_index['features'] = torch.cat((image_index['features'], feature), 0)
         image_index['info'].append(item)
 

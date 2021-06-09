@@ -106,12 +106,17 @@ def main():
 
     # 3. Generate feature
     fc = FeatureExtractor(model)
-    tqdm_obj = tqdm(data_loader, file=sys.stdout)
-    for (input_img, target) in tqdm_obj:
+    count = len(dataset)
+
+    for i in range(count):
+        if i % 100 == 0:
+            print("Now index: %d/%d" % (i, count))
+        input_img, _ = dataset[i]
+        input_img = input_img.unsqueeze(0)
         input_img = input_img.to(device)
 
         feature = fc.extract(input_img)
-        item = dataset.get_item(tqdm_obj.n)
+        item = dataset.get_item(i)
         image_index['features'] = torch.cat((image_index['features'], feature), 0)
         image_index['info'].append(item)
 
