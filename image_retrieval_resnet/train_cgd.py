@@ -16,6 +16,7 @@ from utils.datasets import create_dataloader
 from model import Model, set_bn_eval
 from utils.cgd_utils import recall, LabelSmoothingCrossEntropyLoss, BatchHardTripletLoss, ImageReader, MPerClassSampler
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def train(net, optim):
     net.train()
@@ -23,7 +24,7 @@ def train(net, optim):
     net.apply(set_bn_eval)
     total_loss, total_correct, total_num, data_bar = 0, 0, 0, tqdm(train_data_loader, file=sys.stdout)
     for inputs, labels in data_bar:
-        inputs, labels = inputs.cuda(), labels.cuda()
+        inputs, labels = inputs.to(device), labels.to(device)
         features, classes = net(inputs)
         class_loss = class_criterion(classes, labels)
         feature_loss = feature_criterion(features, labels)
@@ -48,7 +49,7 @@ def test(net, recall_ids):
         for key in eval_dict.keys():
             eval_dict[key]['features'] = []
             for inputs, labels in tqdm(eval_dict[key]['data_loader'], desc='processing {} data'.format(key)):
-                inputs, labels = inputs.cuda(), labels.cuda()
+                inputs, labels = inputs.to(device), labels.to(device)
                 features, classes = net(inputs)
                 eval_dict[key]['features'].append(features)
             eval_dict[key]['features'] = torch.cat(eval_dict[key]['features'], dim=0)
@@ -137,8 +138,8 @@ if __name__ == '__main__':
         eval_dict['gallery'] = {'data_loader': gallery_data_loader}
 
     # model setup, model profile, optimizer config and loss definition
-    model = Model(backbone_type, gd_config, feature_dim, num_classes=nc).cuda()
-    flops, params = profile(model, inputs=(torch.randn(1, 3, 224, 224).cuda(),))
+    model = Model(backbone_type, gd_config, feature_dim, num_classes=nc).to(device)
+    flops, params = profile(model, inputs=(torch.randn(1, 3, 224, 224).to(device),))
     flops, params = clever_format([flops, params])
     print('# Model Params: {} FLOPs: {}'.format(params, flops))
     optimizer = Adam(model.parameters(), lr=1e-4)

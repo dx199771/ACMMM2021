@@ -177,12 +177,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         h, w = item['shape']
 
         b = item['label'][1:] * [w, h, w, h]  # box
-        b[2:] = b[2:].max()  # rectangle to square
-        b[2:] = b[2:] * 1.1 + 20  # pad
         b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
-
-        b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
-        b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
 
         return np.array([b[1], b[0], b[3], b[2]]).tolist()
 
@@ -196,11 +191,30 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         h, w = item['shape']
 
         b = item['label'][1:] * [w, h, w, h]  # box
+        orginal_xywh = np.array(b)
+        # original_size = np.array(b[2:])
         b[2:] = b[2:].max()  # rectangle to square
         b[2:] = b[2:] * 1.1 + 20  # pad
+        # enlarged = b[2:] - original_size  # enlarged after changing to square and padding
+        # b[:2] = b[:2] - enlarged / 2  # Move the left top point to make sure the object is in the middle
+
         b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
 
+        original_b = np.array(b)
         b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
         b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
 
-        return img[b[1]:b[3], b[0]:b[2]], b
+        padding = np.zeros(4)
+        padding[:2] = b[:2] - original_b[:2]
+        padding[2:] = original_b[2:] - b[2:]
+
+        return_img = None
+        if np.all((padding == 0)):
+            return_img = img[b[1]:b[3], b[0]:b[2]]
+        else:
+            return_img = cv2.copyMakeBorder(img[b[1]:b[3], b[0]:b[2]], padding[1], padding[3], padding[0], padding[2],
+                                     cv2.BORDER_CONSTANT, value=(114, 114, 114))  # add border
+
+        original_xyxy = xywh2xyxy(orginal_xywh.reshape(-1, 4)).ravel().astype(np.int)
+
+        return return_img, original_xyxy
