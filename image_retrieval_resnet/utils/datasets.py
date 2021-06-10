@@ -109,6 +109,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         # data stores all the parameters of all the samples
         self.data = cache['data']
+        if len(self.data) > 0:
+            if len(self.data[0]['label']) == 6:
+                self.is_six_column = True
+
         self.labels = []
         if self.use_instance_id:
             for i in range(0, len(self.data)):
@@ -144,7 +148,6 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                             raise ValueError("number of column when use instance id should be 6!")
 
                     if len(origin_l[0]) == 6:
-                        self.is_six_column = True
                         for line in origin_l:
                             if line[1] not in x['instance_to_idx']:
                                 x['instance_to_idx'][line[1]] = now_sn
