@@ -12,11 +12,12 @@ from tqdm import tqdm
 import torchvision.transforms as transforms
 
 from utils.general import check_file
-from utils.datasets import create_dataloader
+from utils.datasets import create_dataloader, create_dataloader_with_dataset, LoadImagesAndLabels
 from model import Model, set_bn_eval
 from utils.cgd_utils import recall, LabelSmoothingCrossEntropyLoss, BatchHardTripletLoss, ImageReader, MPerClassSampler
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def train(net, optim):
     net.train()
@@ -70,17 +71,17 @@ def test(net, recall_ids):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Train CGD')
-    parser.add_argument('--data_path', default='data/image_objects.yaml', type=str, help='datasets path')
+    parser.add_argument('--data_path', default='data/image_objects_cgd.yaml', type=str, help='datasets path')
     parser.add_argument('--data_name', default='acm', type=str, choices=['acm'],
                         help='dataset name')
     parser.add_argument('--crop_type', default='uncropped', type=str, choices=['uncropped', 'cropped'],
                         help='crop data or not, it only works for car or cub dataset')
     parser.add_argument('--backbone_type', default='resnet50', type=str, choices=['resnet50', 'resnext50'],
                         help='backbone network type')
-    parser.add_argument('--gd_config', default='SG', type=str,
+    parser.add_argument('--gd_config', default='SMG', type=str,
                         choices=['S', 'M', 'G', 'SM', 'MS', 'SG', 'GS', 'MG', 'GM', 'SMG', 'MSG', 'GSM'],
                         help='global descriptors config')
-    parser.add_argument('--feature_dim', default=1536, type=int, help='feature dim')
+    parser.add_argument('--feature_dim', default=6144, type=int, help='feature dim')
     parser.add_argument('--smoothing', default=0.1, type=float, help='smoothing value for label smoothing')
     parser.add_argument('--temperature', default=0.5, type=float,
                         help='temperature scaling used in softmax cross-entropy loss')
@@ -115,30 +116,27 @@ if __name__ == '__main__':
         data_dict = yaml.load(f)  # model dict
 
     train_path = data_dict['train']
-    test_path = data_dict['val']
-    nc, names = (int(data_dict['nc']), data_dict['names'])  # number classes, names
-    assert len(names) == nc, '%g names found for nc=%g dataset in %s' % (len(names), nc, opt.data_path)  # check
+    query_path = data_dict['query']
+    gallery_path = data_dict['gallery']
 
     normalize = transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     transform = transforms.Compose([transforms.Resize((252, 252)), transforms.RandomCrop(224),
                                     transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
-    train_sample = None # MPerClassSampler(names, batch_size)
     # Trainloader
-    train_data_loader, train_data_set = create_dataloader(train_path, opt.batch_size, cache=True, transform=transform,
-                                                          sampler=train_sample)
-    train_data_set.classes = names
+    train_data_set = LoadImagesAndLabels(train_path, transform=transform, cache_images=True, use_instance_id=True)
+    train_sample = MPerClassSampler(train_data_set.labels, batch_size)
+    train_data_loader = create_dataloader_with_dataset(train_data_set, opt.batch_size, sampler=train_sample)
 
     test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), normalize])
-    test_data_loader, test_data_set = create_dataloader(test_path, opt.batch_size, cache=False, transform=test_transform)
-    test_data_set.classes = names
-    eval_dict = {'test': {'data_loader': test_data_loader}}
-    if data_name == 'isc':
-        gallery_data_set = ImageReader(data_path, data_name, 'gallery', crop_type)
-        gallery_data_loader = DataLoader(gallery_data_set, batch_size, shuffle=False, num_workers=8)
-        eval_dict['gallery'] = {'data_loader': gallery_data_loader}
+    query_data_loader, query_data_set = create_dataloader(query_path, opt.batch_size, cache=False,
+                                                          transform=test_transform, use_instance_id=True)
+    eval_dict = {'test': {'data_loader': query_data_loader}}
+    gallery_data_loader, gallery_data_set = create_dataloader(gallery_path, opt.batch_size, cache=False,
+                                                              transform=test_transform, use_instance_id=True)
+    eval_dict['gallery'] = {'data_loader': gallery_data_loader}
 
     # model setup, model profile, optimizer config and loss definition
-    model = Model(backbone_type, gd_config, feature_dim, num_classes=nc).to(device)
+    model = Model(backbone_type, gd_config, feature_dim, num_classes=len(train_data_set.instance_to_idx)).to(device)
     flops, params = profile(model, inputs=(torch.randn(1, 3, 224, 224).to(device),))
     flops, params = clever_format([flops, params])
     print('# Model Params: {} FLOPs: {}'.format(params, flops))
@@ -157,7 +155,8 @@ if __name__ == '__main__':
 
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
-        data_frame.to_csv(os.path.join(opt.save_dir, 'results/{}_statistics.csv'.format(save_name_pre)), index_label='epoch')
+        data_frame.to_csv(os.path.join(opt.save_dir, 'results/{}_statistics.csv'.format(save_name_pre)),
+                          index_label='epoch')
         # save database and model
         data_base = {}
         if rank > best_recall:

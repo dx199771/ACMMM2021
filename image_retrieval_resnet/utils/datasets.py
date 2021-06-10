@@ -43,10 +43,10 @@ def exif_size(img):
     return s
 
 
-def create_dataloader(path, batch_size, cache=True, transform=None, sampler=None):
+def create_dataloader(path, batch_size, cache=True, transform=None, sampler=None, use_instance_id=False):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache.
-    print(path)
-    dataset = LoadImagesAndLabels(path, batch_size, transform=transform, cache_images=cache)
+    dataset = LoadImagesAndLabels(path, transform=transform,
+                                  cache_images=cache, use_instance_id=use_instance_id)
 
     batch_size = min(batch_size, len(dataset))
     nw = min([os.cpu_count(), batch_size if batch_size > 1 else 1, 8])  # number of workers
@@ -58,8 +58,21 @@ def create_dataloader(path, batch_size, cache=True, transform=None, sampler=None
     return dataloader, dataset
 
 
+def create_dataloader_with_dataset(dataset, batch_size, sampler=None):
+    batch_size = min(batch_size, len(dataset))
+    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 1, 8])  # number of workers
+    dataloader = torch.utils.data.DataLoader(dataset,
+                                             batch_size=batch_size,
+                                             sampler=sampler,
+                                             num_workers=nw,
+                                             pin_memory=True)
+    return dataloader
+
+
 class LoadImagesAndLabels(Dataset):  # for training/testing
-    def __init__(self, path, batch_size=16, transform=None, cache_images=False):
+    is_six_column = False
+
+    def __init__(self, path, transform=None, cache_images=False, use_instance_id=False):
         try:
             f = []  # image files
             for p in path if isinstance(path, list) else [path]:
@@ -80,6 +93,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         image_number = len(self.img_files)
         assert image_number > 0, 'No images found in %s' % (path)
 
+        self.use_instance_id = use_instance_id
         # Define labels
         self.label_files = [x.replace('images', 'labels').replace(os.path.splitext(x)[-1], '.txt') for x in
                             self.img_files]
@@ -96,8 +110,14 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # data stores all the parameters of all the samples
         self.data = cache['data']
         self.labels = []
-        for i in range(0, len(self.data)):
-            self.labels.append(int(self.data[i]['label'][0]))
+        if self.use_instance_id:
+            for i in range(0, len(self.data)):
+                self.labels.append(int(self.data[i]['label'][1]))
+        else:
+            for i in range(0, len(self.data)):
+                self.labels.append(int(self.data[i]['label'][0]))
+
+        self.instance_to_idx = cache['instance_to_idx']
 
         self.n = len(self.data)  # number of samples
         self.cache_images = cache_images
@@ -106,27 +126,43 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
     def cache_data(self, path='data.cache'):
         # Cache dataset labels, check images and read shapes
-        x = {"data": []}  # dict
+        x = {"data": [], "instance_to_idx": {}}  # dict
         pbar = tqdm(zip(self.img_files, self.label_files), desc='Loading labels', total=len(self.img_files))
+        now_sn = 0
         for (img, label) in pbar:
-            try:
-                l = []
-                image = Image.open(img)
-                image.verify()  # PIL verify
-                # _ = io.imread(img)  # skimage verify (from skimage import io)
-                shape = exif_size(image)  # image size
-                assert (shape[0] > 9) & (shape[1] > 9), 'image size <10 pixels'
-                if os.path.isfile(label):
-                    with open(label, 'r') as f:
-                        l = np.array([x.split() for x in f.read().splitlines()], dtype=np.float32)  # labels
-                if len(l) == 0:
+            l = []
+            image = Image.open(img)
+            image.verify()  # PIL verify
+            # _ = io.imread(img)  # skimage verify (from skimage import io)
+            shape = exif_size(image)  # image size
+            assert (shape[0] > 9) & (shape[1] > 9), 'image size <10 pixels'
+            if os.path.isfile(label):
+                with open(label, 'r') as f:
+                    origin_l = [x.split() for x in f.read().splitlines()]
+                    if self.use_instance_id:
+                        if len(origin_l[0]) != 6:
+                            raise ValueError("number of column when use instance id should be 6!")
+
+                    if len(origin_l[0]) == 6:
+                        self.is_six_column = True
+                        for line in origin_l:
+                            if line[1] not in x['instance_to_idx']:
+                                x['instance_to_idx'][line[1]] = now_sn
+                                now_sn += 1
+
+                            # Substitute with index
+                            line[1] = x['instance_to_idx'][line[1]]
+
+                    l = np.array(origin_l, dtype=np.float32)  # labels
+
+            if len(l) == 0:
+                if self.use_instance_id:
+                    l = np.zeros((0, 6), dtype=np.float32)
+                else:
                     l = np.zeros((0, 5), dtype=np.float32)
 
-                for one_l in l:
-                    x["data"].append({'img': img, 'shape': shape, 'label': one_l})
-
-            except Exception as e:
-                print('WARNING: %s: %s' % (img, e))
+            for one_l in l:
+                x["data"].append({'img': img, 'shape': shape, 'label': one_l})
 
         x['hash'] = get_hash(self.label_files + self.img_files)
         torch.save(x, path)  # save for next time
@@ -176,7 +212,11 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         h, w = item['shape']
 
-        b = item['label'][1:] * [w, h, w, h]  # box
+        if self.is_six_column:
+            b = item['label'][2:] * [w, h, w, h]  # box
+        else:
+            b = item['label'][1:] * [w, h, w, h]  # box
+
         b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
 
         return np.array([b[1], b[0], b[3], b[2]]).tolist()
@@ -190,7 +230,11 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         img = np.array(img)
         h, w = item['shape']
 
-        b = item['label'][1:] * [w, h, w, h]  # box
+        if self.is_six_column:
+            b = item['label'][2:] * [w, h, w, h]  # box
+        else:
+            b = item['label'][1:] * [w, h, w, h]  # box
+
         orginal_xywh = np.array(b)
         # original_size = np.array(b[2:])
         b[2:] = b[2:].max()  # rectangle to square
