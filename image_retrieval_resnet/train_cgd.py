@@ -89,6 +89,7 @@ if __name__ == '__main__':
     parser.add_argument('--recalls', default='1,2,4,8', type=str, help='selected recall')
     parser.add_argument('--batch_size', default=128, type=int, help='train batch size')
     parser.add_argument('--num_epochs', default=20, type=int, help='train epoch number')
+    parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to existing model')
     parser.add_argument('--save-dir', dest='save_dir', help='The directory used to save the trained models',
                         default='save_temp', type=str)
 
@@ -137,6 +138,14 @@ if __name__ == '__main__':
 
     # model setup, model profile, optimizer config and loss definition
     model = Model(backbone_type, gd_config, feature_dim, num_classes=len(train_data_set.instance_to_idx)).to(device)
+    if opt.resume:
+        if os.path.isfile(opt.resume):
+            print("=> resume, loading existing model '{}'".format(opt.resume))
+            state_dict = torch.load(opt.resume)
+            model.load_state_dict(state_dict, strict=False)
+        else:
+            print("=> no model found at '{}'".format(opt.resume))
+
     flops, params = profile(model, inputs=(torch.randn(1, 3, 224, 224).to(device),))
     flops, params = clever_format([flops, params])
     print('# Model Params: {} FLOPs: {}'.format(params, flops))
