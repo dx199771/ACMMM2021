@@ -189,7 +189,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         else:
             try:
                 img, b = self.load_image(index)
-                img = Image.fromarray(img)
+                # img = Image.fromarray(img)
             except Exception as e:
                 print(item)
                 print(e)
@@ -208,7 +208,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
     def get_image(self, index):
         img, _ = self.load_image(index)
 
-        return Image.fromarray(img)
+        return img
 
     def get_converted_bbox(self, index):
         item = self.data[index]
@@ -254,12 +254,13 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         padding = np.zeros(4)
         padding[:2] = b[:2] - original_b[:2]
         padding[2:] = original_b[2:] - b[2:]
+        padding = padding.astype(np.int)
 
         return_img = None
         if np.all((padding == 0)):
-            return_img = img[b[1]:b[3], b[0]:b[2]]
+            return_img = Image.fromarray(img[b[1]:b[3], b[0]:b[2]])
         else:
-            return_img = ImageOps.expand(img[b[1]:b[3], b[0]:b[2]], (padding[0], padding[1], padding[2], padding[3]),
+            return_img = ImageOps.expand(Image.fromarray(img[b[1]:b[3], b[0]:b[2]]), (padding[0], padding[1], padding[2], padding[3]),
                                          fill='black')  # add border
 
         original_xyxy = xywh2xyxy(orginal_xywh.reshape(-1, 4)).ravel().astype(np.int)
