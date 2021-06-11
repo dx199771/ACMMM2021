@@ -56,11 +56,11 @@ def test(net, recall_ids):
             eval_dict[key]['features'] = torch.cat(eval_dict[key]['features'], dim=0)
 
         # compute recall metric
-        if data_name == 'isc':
-            acc_list = recall(eval_dict['test']['features'], test_data_set.labels, recall_ids,
-                              eval_dict['gallery']['features'], gallery_data_set.labels)
-        else:
-            acc_list = recall(eval_dict['test']['features'], test_data_set.labels, recall_ids)
+        # if data_name == 'isc':
+        acc_list = recall(eval_dict['test']['features'], query_data_set.labels, recall_ids,
+                          eval_dict['gallery']['features'], gallery_data_set.labels)
+        # else:
+        #     acc_list = recall(eval_dict['test']['features'], query_data_set.labels, recall_ids)
     desc = 'Test Epoch {}/{} '.format(epoch, num_epochs)
     for index, rank_id in enumerate(recall_ids):
         desc += 'R@{}:{:.2f}% '.format(rank_id, acc_list[index] * 100)
@@ -78,10 +78,10 @@ if __name__ == '__main__':
                         help='crop data or not, it only works for car or cub dataset')
     parser.add_argument('--backbone_type', default='resnet50', type=str, choices=['resnet50', 'resnext50'],
                         help='backbone network type')
-    parser.add_argument('--gd_config', default='SMG', type=str,
+    parser.add_argument('--gd_config', default='GS', type=str,
                         choices=['S', 'M', 'G', 'SM', 'MS', 'SG', 'GS', 'MG', 'GM', 'SMG', 'MSG', 'GSM'],
                         help='global descriptors config')
-    parser.add_argument('--feature_dim', default=6144, type=int, help='feature dim')
+    parser.add_argument('--feature_dim', default=4096, type=int, help='feature dim')
     parser.add_argument('--smoothing', default=0.1, type=float, help='smoothing value for label smoothing')
     parser.add_argument('--temperature', default=0.5, type=float,
                         help='temperature scaling used in softmax cross-entropy loss')
@@ -124,9 +124,9 @@ if __name__ == '__main__':
     transform = transforms.Compose([transforms.Resize((252, 252)), transforms.RandomCrop(224),
                                     transforms.RandomHorizontalFlip(), transforms.ToTensor(), normalize])
     # Trainloader
-    train_data_set = LoadImagesAndLabels(train_path, transform=transform, cache_images=True, use_instance_id=True)
+    train_data_set = LoadImagesAndLabels(train_path, transform=transform, cache_images=False, use_instance_id=True)
     train_sample = MPerClassSampler(train_data_set.labels, batch_size)
-    train_data_loader = create_dataloader_with_dataset(train_data_set, opt.batch_size, sampler=train_sample)
+    train_data_loader = create_dataloader_with_dataset(train_data_set, opt.batch_size, sampler=None)
 
     test_transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor(), normalize])
     query_data_loader, query_data_set = create_dataloader(query_path, opt.batch_size, cache=False,
@@ -165,17 +165,17 @@ if __name__ == '__main__':
         # save statistics
         data_frame = pd.DataFrame(data=results, index=range(1, epoch + 1))
         data_frame.to_csv(os.path.join(opt.save_dir, 'results/{}_statistics.csv'.format(save_name_pre)),
-                          index_label='epoch')
+                         index_label='epoch')
         # save database and model
         data_base = {}
         if rank > best_recall:
             best_recall = rank
-            data_base['test_images'] = test_data_set.images
-            data_base['test_labels'] = test_data_set.labels
+            data_base['test_images'] = query_data_set.images
+            data_base['test_labels'] = query_data_set.labels
             data_base['test_features'] = eval_dict['test']['features']
-            if data_name == 'isc':
-                data_base['gallery_images'] = gallery_data_set.images
-                data_base['gallery_labels'] = gallery_data_set.labels
-                data_base['gallery_features'] = eval_dict['gallery']['features']
-            torch.save(model.state_dict(), os.path.join(opt.save_dir, 'results/{}_model.pth'.format(save_name_pre)))
+
+            data_base['gallery_images'] = gallery_data_set.images
+            data_base['gallery_labels'] = gallery_data_set.labels
+            data_base['gallery_features'] = eval_dict['gallery']['features']
             torch.save(data_base, os.path.join(opt.save_dir, 'results/{}_data_base.pth'.format(save_name_pre)))
+            torch.save(model.state_dict(), os.path.join(opt.save_dir, 'results/{}_model.pth'.format(save_name_pre)))
