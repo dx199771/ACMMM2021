@@ -10,7 +10,7 @@ from threading import Thread
 import cv2
 import numpy as np
 import torch
-from PIL import Image, ExifTags
+from PIL import Image, ExifTags, ImageOps
 from torch.utils.data import Dataset
 from tqdm import tqdm
 from utils.general import torch_distributed_zero_first, xywh2xyxy
@@ -259,8 +259,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         if np.all((padding == 0)):
             return_img = img[b[1]:b[3], b[0]:b[2]]
         else:
-            return_img = cv2.copyMakeBorder(img[b[1]:b[3], b[0]:b[2]], padding[1], padding[3], padding[0], padding[2],
-                                     cv2.BORDER_CONSTANT, value=(114, 114, 114))  # add border
+            return_img = ImageOps.expand(img[b[1]:b[3], b[0]:b[2]], (padding[0], padding[1], padding[2], padding[3]),
+                                         fill='black')  # add border
 
         original_xyxy = xywh2xyxy(orginal_xywh.reshape(-1, 4)).ravel().astype(np.int)
 
