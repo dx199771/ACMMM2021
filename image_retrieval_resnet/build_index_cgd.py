@@ -34,8 +34,9 @@ def main():
 
     parser.add_argument('--append', dest='append', default=False, help='append new index')
     parser.add_argument('--image-size', type=int, default=224, help='resize image to ')
-    parser.add_argument('--model-path', type=str, default='', help='path of model')
-    parser.add_argument('--data', type=str, default='', help='images path of data')
+    parser.add_argument('--model-path', type=str,
+                        default='./save_temp/results/acm_uncropped_resnet50_SG_1536_0.1_0.5_0.1_128_model.pth', help='path of model')
+    parser.add_argument('--data', type=str, default='./data/train/images', help='images path of data')
     parser.add_argument('--save-dir', dest='save_dir', help='The directory used to save the index file',
                         default='save_temp', type=str)
     parser.add_argument('--save-name', type=str, default='img_idx.pth', help='name of image index')
@@ -105,7 +106,7 @@ def main():
         input_img = input_img.to(device)
         with torch.no_grad():
             feature = model(input_img)[0]
-            item = dataset.get_item(i)
+            item = dataset.get_converted_item(i)
             image_index['features'] = torch.cat((image_index['features'], feature), 0)
             image_index['info'].append(item)
 

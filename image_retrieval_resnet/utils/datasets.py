@@ -121,7 +121,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             for i in range(0, len(self.data)):
                 self.labels.append(int(self.data[i]['label'][0]))
 
-        self.instance_to_idx = cache['instance_to_idx']
+        self.class_to_idx = cache['class_to_idx']
 
         self.n = len(self.data)  # number of samples
         self.cache_images = cache_images
@@ -130,7 +130,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
     def cache_data(self, path='data.cache'):
         # Cache dataset labels, check images and read shapes
-        x = {"data": [], "instance_to_idx": {}}  # dict
+        x = {"data": [], "class_to_idx": {}}  # dict
         pbar = tqdm(zip(self.img_files, self.label_files), desc='Loading labels', total=len(self.img_files))
         now_sn = 0
         for (img, label) in pbar:
@@ -147,14 +147,21 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         if len(origin_l[0]) != 6:
                             raise ValueError("number of column when use instance id should be 6!")
 
-                    if len(origin_l[0]) == 6:
+                    if len(origin_l[0]) == 6 and self.use_instance_id:
                         for line in origin_l:
-                            if line[1] not in x['instance_to_idx']:
-                                x['instance_to_idx'][line[1]] = now_sn
+                            if line[1] not in x['class_to_idx']:
+                                x['class_to_idx'][line[1]] = now_sn
                                 now_sn += 1
 
                             # Substitute with index
-                            line[1] = x['instance_to_idx'][line[1]]
+                            line[1] = x['class_to_idx'][line[1]]
+                    else:
+                        for line in origin_l:
+                            if line[0] not in x['class_to_idx']:
+                                x['class_to_idx'][line[0]] = int(line[0])
+
+                            # Substitute with index
+                            line[0] = x['class_to_idx'][line[0]]
 
                     l = np.array(origin_l, dtype=np.float32)  # labels
 
@@ -210,6 +217,12 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         return img
 
+    def get_converted_item(self, index):
+        item = self.data[index]
+        cls = item["label"][1] if self.use_instance_id else item["label"][0]
+        bbox = self.get_converted_bbox(index)
+        return {"img": item['img'], 'class': cls, 'bbox': bbox}
+
     def get_converted_bbox(self, index):
         item = self.data[index]
 
@@ -238,7 +251,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         else:
             b = item['label'][1:] * [w, h, w, h]  # box
 
+        b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
+
         orginal_xywh = np.array(b)
+        '''
         # original_size = np.array(b[2:])
         b[2:] = b[2:].max()  # rectangle to square
         b[2:] = b[2:] * 1.1 + 20  # pad
@@ -262,6 +278,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         else:
             return_img = ImageOps.expand(Image.fromarray(img[b[1]:b[3], b[0]:b[2]]), (padding[0], padding[1], padding[2], padding[3]),
                                          fill='black')  # add border
+        '''
+        return_img = Image.fromarray(img[b[1]:b[3], b[0]:b[2]])
 
         original_xyxy = xywh2xyxy(orginal_xywh.reshape(-1, 4)).ravel().astype(np.int)
 

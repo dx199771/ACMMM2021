@@ -42,8 +42,9 @@ def check_same_item(img1, img2):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--model-path', type=str, default='./save_temp/resnet50.pth', help='path of model')
-    parser.add_argument('--search-idx-file', type=str, default='./img_index/img_idx.pth', help='name of image index')
+    parser.add_argument('--model-path', type=str,
+                        default='./save_temp/results/acm_uncropped_resnet50_SG_1536_0.1_0.5_0.1_128_model.pth', help='path of model')
+    parser.add_argument('--search-idx-file', type=str, default='./save_temp/img_idx.pth', help='name of image index')
     parser.add_argument('--search-data', type=str, default='./data/train/images', help='images path of search data')
     parser.add_argument('--index-original-data', type=str, default='./data/train/images', help='images path of index origin data')
 
@@ -61,10 +62,11 @@ def main():
 
     image_size = 224
     idx_features = torch.as_tensor(image_index['features'])
+    idx_item_info = image_index['info']
 
     # 2. Load model
     # Create model
-    model = Model('resnet50', 'SG', 1536, num_classes=923).to(device)
+    model = Model('resnet50', 'SG', 1536, num_classes=23).to(device)
     model.eval()
     if not args.model_path:
         print("[Error]--model-path must be set")
@@ -91,7 +93,7 @@ def main():
     ])
     # Data
     _, search_dataset = create_dataloader(args.search_data, 1, cache=False, transform=transform)
-    _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=False, transform=None)
+    # _, origin_dataset = create_dataloader(args.index_original_data, 1, cache=False, transform=None)
 
     # 4. Test search result
     # Search and construct data structure
@@ -127,25 +129,28 @@ def main():
         indices = torch.argsort(dists, 0, descending=False)[:top_n]  # Top results
         scores = [(idx.item(), dists[idx].item()) for idx in indices]
         for idx, sc in scores:
-            origin_item = origin_dataset.get_item(idx)
+            origin_item = idx_item_info[idx]
             item_id, img_sn = get_id_from_name(origin_item['img'])
             if item_id not in video_record:
-                video_record[item_id] = {'avg': AverageMeter(), 'times': 0, 'imgs':{}}
+                video_record[item_id] = {'avg': AverageMeter(), 'imgs':{}}
             item_record = video_record[item_id]
 
             item_record['avg'].update(sc)
-            item_record['times'] += 1
 
             if img_sn not in item_record['imgs']:
                 # get bbox
                 item_record['imgs'][img_sn] = {'avg': AverageMeter(),
-                                               'times': 0,
-                                               'bbox': origin_dataset.get_converted_bbox(idx)}
+                                               'class': int(origin_item['class']),
+                                               'bbox': origin_item['bbox']}
 
             item_record['imgs'][img_sn]['avg'].update(sc)
-            item_record['imgs'][img_sn]['times'] += 1
 
     print("Data construct finished!")
+
+    class_names = ["short sleeve top", "long sleeve top", "short sleeve shirt", "long sleeve shirt", "vest top",
+                   "sling top", "sleeveless top", "short outwear", "short vest", "long sleeve dress",
+                   "short sleeve dress", "sleeveless dress", "long vest", "long outwear", "bodysuit", "classical",
+                   "short skirt", "medium skirt", "long skirt", "shorts", "medium shorts", "trousers", "overalls"]
 
     sorted_video_records = {} # video_id => { "item_id":item_id, "imgs": [(img_sn, score, bbox)] }
     # Refresh data by sorting
@@ -155,7 +160,7 @@ def main():
         video_record = video_score[video_id]
         item_list = []
         for item_id in video_record.keys():
-            item_list.append((item_id, video_record[item_id]['times'], video_record[item_id]['avg'].avg))
+            item_list.append((item_id, video_record[item_id]['avg'].count, video_record[item_id]['avg'].avg))
 
         item_list.sort(key=lambda tup : (-tup[1], tup[2]))
         chosen_item_id = item_list[0][0]
@@ -164,14 +169,16 @@ def main():
         img_list = []
         for img_sn in video_record[chosen_item_id]['imgs'].keys():
             img_record = video_record[chosen_item_id]['imgs'][img_sn]
-            img_list.append((img_sn, img_record['times'], img_record['avg'].avg, img_record['bbox']))
+            img_list.append((img_sn, img_record['avg'].count, img_record['avg'].avg, img_record["class"], img_record['bbox']))
 
         img_list.sort(key=lambda tup : (-tup[1], tup[2]))
-        sorted_video_records[video_id]['result'] = img_list
+        for img_item in img_list:
+            sorted_video_records[video_id]['result'].append({"img_name": img_item[0], "box": img_item[4],
+                                                             "label": class_names[img_item[3]]})
 
     # print(sorted_video_records)
     print("Result file generated!")
-    with open('data.json', 'w') as f:
+    with open('submission.json', 'w') as f:
         json.dump(sorted_video_records, f)
 
     # Statisitcs
