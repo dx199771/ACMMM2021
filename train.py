@@ -96,7 +96,6 @@ get_yolo_data(data_path,video_path)
 """
     Yolo data annotation for image data
 """
-
 def generate_image_annotation(data,name):
     with open(data) as f:
         data = json.load(f)
@@ -106,13 +105,19 @@ def generate_image_annotation(data,name):
         h,w = get_img_data(img_path, img_name, item_id)
         print(h,w,img_name,item_id)
         get_img_label(img_name,item_id,item_anno,h,w)
+
+
 def get_img_label(name, id, anno,h ,w):
     for i in anno:
         label = i["label"]
+        instance_id = i["instance_id"]
+        display = i["display"]
+        viewpoint = i["viewpoint"]
         anno_ = abbox_to_relbox(i["box"], w,h)
         f = open("./all_img_data/{}/train/labels/{}_{}.txt".format(dataset,id,name[:-4]), "a")
-        f.write("{} {} {} {} {}\n".format(lable_lookup(label),anno_[0],anno_[1],anno_[2],anno_[3]))
+        f.write("{} {} {} {} {} {}\n".format(lable_lookup(label), "{0}_{1}_{2}".format(instance_id, display, viewpoint), anno_[0],anno_[1],anno_[2],anno_[3]))
         f.close()
+
 
 def get_img_data(path, name, id):
     img_files = os.path.join(path, id, name)
@@ -120,15 +125,27 @@ def get_img_data(path, name, id):
     cv2.imwrite("./all_img_data/{}/train/images/{}_{}".format(dataset,id,name),img)
     (h,w,_) = img.shape
     return h,w
-#def create_img_annotation():
-data_path = "../train_dataset_part5/image_annotation"
-img_path = "../train_dataset_part5/image"
-dataset = "dataset5"
+
+
+# Check the save_dir exists or not
+'''
+paths = ['./all_image_data']
+if not os.path.exists():
+    os.makedirs(args.save_dir)
+'''
+
+
+data_path = "./train_image_data/image_annotation"
+img_path = "./train_image_data/image"
+dataset = "data"
 data_list = os.listdir(data_path)
 length = len(data_list)
 for i, v in enumerate(data_list):
     print(i,"/",length)
     image_path = os.path.join(data_path,v)
+    if not os.path.isdir(image_path):
+        continue
+
     data_list = os.listdir(image_path)
     for j in data_list:
         generate_image_annotation(os.path.join(image_path,j), v)

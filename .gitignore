@@ -23,3 +23,4 @@ cabal.project.local~
 .ghc.environment.*
 /data/
 /related work/data/train/
+/image_retrieval_resnet/save_temp/
