@@ -134,7 +134,7 @@ class LoadVideosAndLabels(Dataset):  # for training/testing
                     origin_l = [x.split() for x in f.read().splitlines()]
 
                     for line in origin_l:
-                        if line[0] not in x['class_to_idx']:
+                        if line[1] not in x['class_to_idx']:
                             x['class_to_idx'][line[1]] = int(line[1])
 
                         # Substitute with index

@@ -185,7 +185,11 @@ def main():
             img_list.append((img_sn, img_record['avg'].count, img_record['avg'].avg, img_record["class"], img_record['bbox']))
 
         img_list.sort(key=lambda tup : (-tup[1], tup[2]))
+        appeared_label = set()
         for img_item in img_list:
+            if img_item[3] in appeared_label:
+                continue
+            appeared_label.add(img_item[3])
             sorted_video_records[video_id]['result'].append({"img_name": img_item[0], "box": img_item[4],
                                                              "label": class_names[img_item[3]]})
 
