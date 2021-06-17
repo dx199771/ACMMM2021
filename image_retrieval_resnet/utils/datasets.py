@@ -235,7 +235,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
 
         b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
 
-        return np.array([b[1], b[0], b[3], b[2]]).tolist()
+        return np.array([b[0], b[1], b[2], b[3]]).tolist()
 
     def load_image(self, index):
         # loads 1 image from dataset, returns clipped img
